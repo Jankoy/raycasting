@@ -176,10 +176,21 @@ function minimap(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | nul
 
 function render(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | null, position: Vector2D, size: Vector2D, scene: Scene) {
     ctx.reset();
+    
     ctx.fillStyle = "#111111";
     ctx.beginPath();
     ctx.fillRect(0, 0, ...canvasSize(ctx).array());
     ctx.fill();
+    
+    ctx.fillStyle = "blue";
+    fillCircle(ctx, new Vector2D(350, 220), 40);
+    fillCircle(ctx, new Vector2D(520, 220), 40);
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 5;
+    strokeLine(ctx, new Vector2D(320, 300), new Vector2D(360, 350));
+    strokeLine(ctx, new Vector2D(360, 350), new Vector2D(510, 350));
+    strokeLine(ctx, new Vector2D(510, 350), new Vector2D(550, 300));
+    
     minimap(ctx, p1, p2, position, size, scene);
 }
 
