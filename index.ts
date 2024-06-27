@@ -1,4 +1,5 @@
 type Scene = Array<Array<number>>;
+
 class Vector2D {
     x: number;
     y: number;
@@ -122,49 +123,48 @@ function sceneSize(scene: Scene): Vector2D {
 }
 
 function minimap(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | null, position: Vector2D, size: Vector2D, scene: Scene): void {
-    ctx.reset();
-
     ctx.fillStyle = "#181818";
     ctx.strokeStyle = "#363636";
-    ctx.fillRect(0, 0, ...canvasSize(ctx).array());
     
     const gridSize = sceneSize(scene);
-
+    
     ctx.translate(...position.array());
     ctx.scale(...size.div(gridSize).array());
     ctx.lineWidth = 0.05;
 
+    ctx.fillRect(0, 0, ...gridSize.array());
+    
     ctx.fillStyle = "#363636";
     for (let y = 0; y < gridSize.y; ++y)
         for (let x = 0; x < gridSize.x; ++x)
-            if (scene[y][x] === 1)
-                ctx.fillRect(x, y, 1, 1);
-
+    if (scene[y][x] === 1)
+        ctx.fillRect(x, y, 1, 1);
+    
     for (let x = 0; x <= gridSize.x; ++x) {
         const p1 = new Vector2D(x, 0);
         const p2 = new Vector2D(x, gridSize.y);
         strokeLine(ctx, p1, p2);
     }
-
+    
     for (let y = 0; y <= gridSize.y; ++y) {
         const p1 = new Vector2D(0, y);
         const p2 = new Vector2D(gridSize.x, y);
         strokeLine(ctx, p1, p2);
     }
-
+    
     ctx.fillStyle = "magenta";
     ctx.strokeStyle = "magenta";
-
+    
     fillCircle(ctx, p1, 0.2);
     if (p2 !== null) {
         while (true) {
             const c = hittingCell(p1, p2);
             if (c.x < 0 || c.x >= gridSize.x || c.y < 0 || c.y >= gridSize.y || scene[c.y][c.x] !== 0)
                 break;
-
+            
             fillCircle(ctx, p2, 0.2);
             strokeLine(ctx, p1, p2);
-
+            
             const p3 = rayStep(p1, p2);
             fillCircle(ctx, p3, 0.2);
             strokeLine(ctx, p2, p3);
@@ -174,16 +174,25 @@ function minimap(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | nul
     }
 }
 
+function render(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | null, position: Vector2D, size: Vector2D, scene: Scene) {
+    ctx.reset();
+    ctx.fillStyle = "#111111";
+    ctx.beginPath();
+    ctx.fillRect(0, 0, ...canvasSize(ctx).array());
+    ctx.fill();
+    minimap(ctx, p1, p2, position, size, scene);
+}
+
 (() => {
     let scene: Scene = [
-        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ];
 
     const game = document.getElementById("game") as (HTMLCanvasElement | null);
@@ -202,8 +211,8 @@ function minimap(ctx: CanvasRenderingContext2D, p1: Vector2D, p2: Vector2D | nul
     const minimapSize = sceneSize(scene).scale(cellSize);
     game.addEventListener("mousemove", (ev: MouseEvent) => {
         const p2 = new Vector2D(ev.offsetX, ev.offsetY).sub(minimapPosition).div(minimapSize).mul(sceneSize(scene));
-        minimap(ctx, p1, p2, minimapPosition, minimapSize, scene);
+        render(ctx, p1, p2, minimapPosition, minimapSize, scene);
     });
 
-    minimap(ctx, p1, null, minimapPosition, minimapSize, scene);
+    render(ctx, p1, null, minimapPosition, minimapSize, scene);
 })();

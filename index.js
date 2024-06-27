@@ -100,14 +100,13 @@ function sceneSize(scene) {
     return new Vector2D(x, y);
 }
 function minimap(ctx, p1, p2, position, size, scene) {
-    ctx.reset();
     ctx.fillStyle = "#181818";
     ctx.strokeStyle = "#363636";
-    ctx.fillRect(0, 0, ...canvasSize(ctx).array());
     const gridSize = sceneSize(scene);
     ctx.translate(...position.array());
     ctx.scale(...size.div(gridSize).array());
     ctx.lineWidth = 0.05;
+    ctx.fillRect(0, 0, ...gridSize.array());
     ctx.fillStyle = "#363636";
     for (let y = 0; y < gridSize.y; ++y)
         for (let x = 0; x < gridSize.x; ++x)
@@ -141,16 +140,24 @@ function minimap(ctx, p1, p2, position, size, scene) {
         }
     }
 }
+function render(ctx, p1, p2, position, size, scene) {
+    ctx.reset();
+    ctx.fillStyle = "#111111";
+    ctx.beginPath();
+    ctx.fillRect(0, 0, ...canvasSize(ctx).array());
+    ctx.fill();
+    minimap(ctx, p1, p2, position, size, scene);
+}
 (() => {
     let scene = [
-        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ];
     const game = document.getElementById("game");
     if (game === null) {
@@ -166,7 +173,7 @@ function minimap(ctx, p1, p2, position, size, scene) {
     const minimapSize = sceneSize(scene).scale(cellSize);
     game.addEventListener("mousemove", (ev) => {
         const p2 = new Vector2D(ev.offsetX, ev.offsetY).sub(minimapPosition).div(minimapSize).mul(sceneSize(scene));
-        minimap(ctx, p1, p2, minimapPosition, minimapSize, scene);
+        render(ctx, p1, p2, minimapPosition, minimapSize, scene);
     });
-    minimap(ctx, p1, null, minimapPosition, minimapSize, scene);
+    render(ctx, p1, null, minimapPosition, minimapSize, scene);
 })();
