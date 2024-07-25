@@ -4,8 +4,63 @@ const FAR_CLIPPING_PLANE = 12.0;
 const FOV = Math.PI * 0.5;
 const H_FOV = FOV * 0.5;
 const STRIP_COUNT = 300;
-const PLAYER_TURN = Math.PI*0.0125;
-const PLAYER_STEP = 0.05;
+const PLAYER_TURN = Math.PI * 0.8;
+const PLAYER_SPEED = 2.2;
+
+class Color {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+
+  constructor(r: number, g: number, b: number, a: number) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+
+  static red(): Color {
+    return new Color(0.84, 0.08, 0.05, 1);
+  }
+
+  static green(): Color {
+    return new Color(0.05, 0.84, 0.08, 1);
+  }
+
+  static blue(): Color {
+    return new Color(0.08, 0.05, 0.84, 1);
+  }
+
+  brightness(factor: number): Color {
+    if (factor > 1.0) factor = 1.0;
+    else if (factor < -1.0) factor = -1.0;
+
+    let result = new Color(this.r, this.g, this.b, this.a);
+
+    if (factor < 0.0) {
+      factor = 1.0 + factor;
+      result.r *= factor;
+      result.g *= factor;
+      result.b *= factor;
+    } else {
+      result.r = (1.0 - result.r) * factor + result.r;
+      result.g = (1.0 - result.g) * factor + result.g;
+      result.b = (1.0 - result.b) * factor + result.b;
+    }
+
+    return result;
+  }
+
+  toStyle(): string {
+    return `rgba(` +
+      `${Math.floor(this.r * 255)}, ` +
+      `${Math.floor(this.g * 255)}, ` +
+      `${Math.floor(this.b * 255)}, ` +
+      `${this.a}` +
+      `)`;
+  }
+}
 
 class Vector2D {
   x: number;
@@ -94,14 +149,16 @@ class Player {
 
   view(): [Vector2D, Vector2D] {
     const l = Math.tan(H_FOV) * NEAR_CLIPPING_PLANE;
-    const p = this.position.add(Vector2D.fromAngle(this.direction).scale(NEAR_CLIPPING_PLANE));
+    const p = this.position.add(
+      Vector2D.fromAngle(this.direction).scale(NEAR_CLIPPING_PLANE),
+    );
     const p1 = p.sub(p.sub(this.position).rot90().norm().scale(l));
     const p2 = p.add(p.sub(this.position).rot90().norm().scale(l));
     return [p1, p2];
   }
 }
 
-type Scene = Array<Array<string | null>>;
+type Scene = Array<Array<Color | null>>;
 
 function fillCircle(
   ctx: CanvasRenderingContext2D,
@@ -204,11 +261,11 @@ function renderMinimap(
   ctx.beginPath();
   ctx.fillRect(0, 0, ...gridSize.array());
   ctx.fill();
-  
+
   for (let y = 0; y < gridSize.y; ++y) {
     for (let x = 0; x < gridSize.x; ++x) {
       if (scene[y][x] !== null) {
-        ctx.fillStyle = scene[y][x]!;
+        ctx.fillStyle = scene[y][x]!.toStyle();
         ctx.beginPath();
         ctx.fillRect(x, y, 1, 1);
         ctx.fill();
@@ -271,9 +328,16 @@ function renderScene(
       const v = p.sub(player.position);
       const d = Vector2D.fromAngle(player.direction);
       const stripHeight = ctx.canvas.height / v.dot(d);
-      ctx.fillStyle = scene[c.y][c.x]!;
+      ctx.fillStyle = scene[c.y][c.x]!.brightness(
+        Math.min(1 / v.dot(d) - 0.8, 0),
+      ).toStyle();
       ctx.beginPath();
-      ctx.fillRect(x * stripWidth, (ctx.canvas.height - stripHeight) * 0.5, stripWidth + 1, stripHeight);
+      ctx.fillRect(
+        x * stripWidth,
+        (ctx.canvas.height - stripHeight) * 0.5,
+        stripWidth + 1,
+        stripHeight,
+      );
       ctx.fill();
     }
   }
@@ -295,20 +359,53 @@ function renderGame(
   renderMinimap(ctx, scene, player);
 }
 
+type KeyMap = { [code: string]: boolean };
+
+function getKeysNormalVector(
+  keyStates: KeyMap,
+  positive: string,
+  negative: string,
+): number {
+  return ((keyStates[positive] as unknown as number) || 0) -
+    ((keyStates[negative] as unknown as number) || 0);
+}
+
 (() => {
   const scene: Scene = [
-    [null,  null,  null, null,   "blue", null, null,    null,    null,    null],
-    [null,  null,  null, "blue", null,   null, null,    null,    null,    null],
-    [null,  null,  null, "blue", "blue", null, null,    null,    null,    null],
-    [null,  null,  null, null,   null,   null, null,    null,    null,    null],
-    [null,  null,  null, null,   null,   null, null,    null,    null,    null],
-    ["red", null,  null, null,   null,   null, null,    null,    null,    null],
-    ["red", "red", null, null,   null,   null, "green", "green", "green", null],
-    ["red", null,  null, null,   null,   null, null,    null,    null,    null],
-    ["red", null,  null, null,   null,   null, null,    null,    null,    null],
-    [null,  null,  null, null,   null,   null, null,    null,    null,    null],
+    [null, null, null, null, Color.blue(), null, null, null, null, null],
+    [null, null, null, Color.blue(), null, null, null, null, null, null],
+    [
+      null,
+      null,
+      null,
+      Color.blue(),
+      Color.blue(),
+      null,
+      null,
+      null,
+      null,
+      null,
+    ],
+    [null, null, null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null, null, null],
+    [Color.red(), null, null, null, null, null, null, null, null, null],
+    [
+      Color.red(),
+      Color.red(),
+      null,
+      null,
+      null,
+      null,
+      Color.green(),
+      Color.green(),
+      Color.green(),
+      null,
+    ],
+    [Color.red(), null, null, null, null, null, null, null, null, null],
+    [Color.red(), null, null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null, null, null],
   ];
-  
+
   const game = document.getElementById("game") as (HTMLCanvasElement | null);
   if (game === null) {
     throw new Error("No canvas with id `game` is found");
@@ -318,13 +415,13 @@ function renderGame(
   if (ctx === null) {
     throw new Error("2D context is not supported");
   }
-  
+
   let player = new Player(
     sceneSize(scene).mul(new Vector2D(0.5, 0.5)),
     Math.PI * 0.25,
   );
-  
-  let keyStates: {[code: string]: boolean} = {};
+
+  let keyStates: KeyMap = {};
 
   window.addEventListener("keydown", (e) => {
     keyStates[e.code] = !e.repeat || keyStates[e.code];
@@ -339,16 +436,23 @@ function renderGame(
   const frame = (timestamp: number) => {
     const deltaTime = (timestamp - prevTimestamp) / 1000;
     prevTimestamp = timestamp;
-    if (keyStates["KeyW"]) player.position = player.position.add(Vector2D.fromAngle(player.direction).scale(PLAYER_STEP * deltaTime * 60));
-    if (keyStates["KeyS"]) player.position = player.position.sub(Vector2D.fromAngle(player.direction).scale(PLAYER_STEP * deltaTime * 60));
-    if (keyStates["KeyA"]) player.direction -= PLAYER_TURN * deltaTime * 60;
-    if (keyStates["KeyD"]) player.direction += PLAYER_TURN * deltaTime * 60;
+
+    const deltaTurn = getKeysNormalVector(keyStates, "KeyD", "KeyA");
+    const angularVelocity = deltaTurn * PLAYER_TURN;
+    player.direction += angularVelocity * deltaTime;
+
+    const deltaMove = getKeysNormalVector(keyStates, "KeyW", "KeyS");
+    const velocity = Vector2D.fromAngle(player.direction).scale(
+      deltaMove * PLAYER_SPEED,
+    );
+    player.position = player.position.add(velocity.scale(deltaTime));
+
     renderGame(ctx, scene, player);
-    window.requestAnimationFrame(frame)
-  }
-  
-  window.requestAnimationFrame((timestamp) => {
+    window.requestAnimationFrame(frame);
+  };
+
+  window.requestAnimationFrame((timestamp: number) => {
     prevTimestamp = timestamp;
-    window.requestAnimationFrame(frame)
+    window.requestAnimationFrame(frame);
   });
 })();
