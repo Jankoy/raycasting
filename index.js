@@ -1,10 +1,19 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 const EPS = 1e-6;
-const NEAR_CLIPPING_PLANE = 0.25;
+const NEAR_CLIPPING_PLANE = 0.2;
 const FAR_CLIPPING_PLANE = 12.0;
 const FOV = Math.PI * 0.5;
 const H_FOV = FOV * 0.5;
-const STRIP_COUNT = 300;
+const STRIP_COUNT = 400;
 const PLAYER_TURN = Math.PI * 0.8;
 const PLAYER_SPEED = 2.2;
 class Color {
@@ -197,10 +206,16 @@ function renderMinimap(ctx, scene, player) {
     ctx.fill();
     for (let y = 0; y < gridSize.y; ++y) {
         for (let x = 0; x < gridSize.x; ++x) {
-            if (scene[y][x] !== null) {
-                ctx.fillStyle = scene[y][x].toStyle();
+            const cell = scene[y][x];
+            if (cell instanceof Color) {
+                ctx.fillStyle = cell.toStyle();
                 ctx.beginPath();
                 ctx.fillRect(x, y, 1, 1);
+                ctx.fill();
+            }
+            else if (cell instanceof OffscreenCanvas) {
+                ctx.beginPath();
+                ctx.drawImage(cell, x, y, 1, 1);
                 ctx.fill();
             }
         }
@@ -247,13 +262,26 @@ function renderScene(ctx, scene, player) {
         const p = castRay(scene, player.position, p1.lerp(p2, x / STRIP_COUNT));
         const c = hittingCell(player.position, p);
         if (insideScene(scene, c) && scene[c.y][c.x] !== null) {
-            const v = p.sub(player.position);
-            const d = Vector2D.fromAngle(player.direction);
-            const stripHeight = ctx.canvas.height / v.dot(d);
-            ctx.fillStyle = scene[c.y][c.x].brightness(Math.min(1 / v.dot(d) - 0.8, 0)).toStyle();
-            ctx.beginPath();
-            ctx.fillRect(x * stripWidth, (ctx.canvas.height - stripHeight) * 0.5, stripWidth + 1, stripHeight);
-            ctx.fill();
+            const cell = scene[c.y][c.x];
+            if (cell instanceof Color) {
+                const v = p.sub(player.position);
+                const d = Vector2D.fromAngle(player.direction);
+                const stripHeight = ctx.canvas.height / v.dot(d);
+                ctx.fillStyle = cell.brightness(Math.min(1 / v.dot(d) - 0.8, 0)).toStyle();
+                ctx.beginPath();
+                ctx.fillRect(x * stripWidth - 1, (ctx.canvas.height - stripHeight) * 0.5, stripWidth + 1, stripHeight);
+                ctx.fill();
+            }
+            else if (cell instanceof OffscreenCanvas) {
+                const v = p.sub(player.position);
+                const d = Vector2D.fromAngle(player.direction);
+                const stripHeight = ctx.canvas.height / v.dot(d);
+                const t = p.sub(c);
+                const u = (Math.abs(t.x - 1) < EPS || Math.abs(t.x) < EPS) && t.y > 0
+                    ? t.y
+                    : t.x;
+                ctx.drawImage(cell, u * cell.width, 0, 1, cell.height, x * stripWidth - 1, (ctx.canvas.height - stripHeight) * 0.5, stripWidth + 1, stripHeight);
+            }
         }
     }
 }
@@ -270,7 +298,31 @@ function getKeysNormalVector(keyStates, positive, negative) {
     return (keyStates[positive] || 0) -
         (keyStates[negative] || 0);
 }
-(() => {
+function loadOffscreenCanvas(url) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                const canvas = new OffscreenCanvas(image.width, image.height);
+                const ctx = canvas.getContext("2d");
+                if (ctx === null)
+                    throw new Error("2D context is not supported");
+                ctx.drawImage(image, 0, 0);
+                resolve(canvas);
+            };
+            image.onerror = reject;
+            image.src = url;
+        });
+    });
+}
+(() => __awaiter(void 0, void 0, void 0, function* () {
+    const game = document.getElementById("game");
+    if (game === null)
+        throw new Error("No canvas with id `game` is found");
+    const ctx = game.getContext("2d");
+    if (ctx === null)
+        throw new Error("2D context is not supported");
+    const tsodinPog = yield loadOffscreenCanvas("images/tsodinPog.png");
     const scene = [
         [null, null, null, null, Color.blue(), null, null, null, null, null],
         [null, null, null, Color.blue(), null, null, null, null, null, null],
@@ -296,25 +348,17 @@ function getKeysNormalVector(keyStates, positive, negative) {
             null,
             null,
             null,
-            Color.green(),
-            Color.green(),
-            Color.green(),
+            tsodinPog,
+            tsodinPog,
+            tsodinPog,
             null,
         ],
         [Color.red(), null, null, null, null, null, null, null, null, null],
         [Color.red(), null, null, null, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null, null],
     ];
-    const game = document.getElementById("game");
-    if (game === null) {
-        throw new Error("No canvas with id `game` is found");
-    }
-    const ctx = game.getContext("2d");
-    if (ctx === null) {
-        throw new Error("2D context is not supported");
-    }
-    let player = new Player(sceneSize(scene).mul(new Vector2D(0.5, 0.5)), Math.PI * 0.25);
-    let keyStates = {};
+    const player = new Player(sceneSize(scene).mul(new Vector2D(0.5, 0.5)), Math.PI * 0.25);
+    const keyStates = {};
     window.addEventListener("keydown", (e) => {
         keyStates[e.code] = !e.repeat || keyStates[e.code];
     });
@@ -338,5 +382,5 @@ function getKeysNormalVector(keyStates, positive, negative) {
         prevTimestamp = timestamp;
         window.requestAnimationFrame(frame);
     });
-})();
+}))();
 //# sourceMappingURL=index.js.map
